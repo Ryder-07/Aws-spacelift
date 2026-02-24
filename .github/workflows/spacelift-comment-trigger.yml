@@ -1,0 +1,31 @@
+name: Spacelift PR Comment Trigger
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  trigger:
+    if: github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for deploy command
+        id: check
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          if [[ "$COMMENT" == "/deploy dev" ]]; then
+            echo "trigger=true" >> $GITHUB_OUTPUT
+          else
+            echo "trigger=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Spacelift Run
+        if: steps.check.outputs.trigger == 'true'
+        run: |
+          curl -X POST https://app.spacelift.io/graphql \
+          -H "Authorization: Bearer ${{ secrets.SPACELIFT_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "query": "mutation { runCreate(stackId: \"your-stack-id\", branch: \"${{ github.head_ref }}\") { id } }"
+          }'
